@@ -169,13 +169,105 @@ The baseline establishes a starting point: ROUGE-L of 0.15 and BERTScore of 0.82
 
 ## Task 5: Prompt Engineering (15 marks)
 
-*To be completed*
+**Target:** ~400-500 words
+
+---
+
+### Approach: Systematic Ablation Study
+
+Rather than testing random prompt variations, this section uses a **controlled ablation study** where each prompt version adds exactly one element to the previous version. This isolates the effect of each technique and reveals which components contribute to (or harm) performance.
+
+### Prompt Versions
+
+| Version | Addition | Cumulative Template |
+|---------|----------|---------------------|
+| v1_role | Role framing | "You are a medical researcher. Summarize this research:" |
+| v2_audience | + Audience targeting | Adds "...for a patient with no medical background" |
+| v3_constraints | + Constraints | Adds "Only include factual claims. Do not include acknowledgments or references." |
+| v4_structure | + Structured output | Adds "Summarize in 3 points: 1) What was studied 2) Key findings 3) Implications" |
+| v5_fewshot | + Few-shot example | Adds a worked example before the input |
+
+### Rationale for Each Technique
+
+1. **Role framing (v1):** Primes the model to adopt domain-appropriate vocabulary and tone. Based on research showing LLMs respond to persona instructions.
+
+2. **Audience targeting (v2):** Aims to reduce jargon and increase accessibility by specifying the intended reader.
+
+3. **Constraints (v3):** Addresses observed baseline problems — GPT-2 frequently generated "Acknowledgments" sections and unsupported claims. Explicit constraints attempt to suppress these.
+
+4. **Structured output (v4):** Provides a template that guides the model toward organized, focused summaries rather than freeform generation.
+
+5. **Few-shot example (v5):** The standard technique for improving LLM output by demonstrating the desired format.
+
+### Generation Parameters
+
+All experiments used identical parameters to the baseline for fair comparison:
+- Max new tokens: 150
+- Beam search: 4 beams
+- No repeat n-gram size: 3
+- Deterministic (do_sample=False)
+
+### Temperature Variation
+
+Additionally, temperature was tested on the best-performing prompt (v4_structure) to explore the creativity-accuracy tradeoff:
+
+| Temperature | ROUGE-L | Observation |
+|-------------|---------|-------------|
+| 0.0 | 0.1010 | Most deterministic but lowest score |
+| 0.3 | 0.1118 | Slight improvement |
+| 0.7 | 0.1185 | More variation |
+| 1.0 | 0.1278 | Highest with sampling |
+
+Note: Temperature testing required disabling beam search (num_beams=1, do_sample=True), which fundamentally changes generation behaviour. These results are not directly comparable to the main ablation study.
+
+### Key Finding: Stacking Can Hurt
+
+The critical insight is that **prompt stacking does not guarantee improvement**. When v1_role performed poorly (dropping from baseline 0.1529 to 0.1424 ROUGE-L), all subsequent versions inherited this degraded starting point. The few-shot example (v5) performed worst of all — likely because GPT-2's limited context window was consumed by the example, leaving less room for the actual input, and the model sometimes "continued" the example rather than summarizing the new text.
 
 ---
 
 ## Task 6: Evaluate Prompts (5 marks)
 
-*To be completed*
+**Target:** ~200-250 words
+
+---
+
+### Ablation Results
+
+| Version | ROUGE-1 | ROUGE-2 | ROUGE-L | BERTScore F1 | Δ R-L vs Previous |
+|---------|---------|---------|---------|--------------|-------------------|
+| Baseline | 0.2907 | 0.0437 | 0.1529 | 0.8156 | — |
+| v1_role | 0.2503 | 0.0389 | 0.1424 | 0.8071 | -0.0105 |
+| v2_audience | 0.2588 | 0.0360 | 0.1442 | 0.8102 | +0.0019 |
+| v3_constraints | 0.2608 | 0.0305 | 0.1392 | 0.8122 | -0.0050 |
+| v4_structure | 0.2917 | 0.0416 | 0.1539 | 0.8167 | +0.0146 |
+| v5_fewshot | 0.1966 | 0.0194 | 0.1229 | 0.7932 | -0.0310 |
+
+### Analysis
+
+**Best performer: v4_structure** achieved ROUGE-L 0.1539, a 0.6% improvement over baseline. While modest, this represents the ceiling of what prompt engineering alone can achieve with GPT-2 on this task.
+
+**Worst performer: v5_fewshot** (ROUGE-L 0.1229) demonstrates that few-shot prompting is not universally beneficial. For GPT-2 with its 1024-token context limit, including an example consumed ~200 tokens, leaving less room for the input document. The model also showed confusion, sometimes continuing the example's content rather than summarizing the new input.
+
+**Role framing backfired:** v1_role dropped performance from baseline, suggesting that "You are a medical researcher" may have biased GPT-2 toward overly technical or verbose output not matching the ground truth abstracts.
+
+**Constraints had mixed effects:** While v3_constraints successfully reduced "Acknowledgments" generation (a qualitative improvement), it slightly decreased ROUGE-L, possibly because the constraint text consumed context tokens.
+
+### Non-Stacked Validation
+
+To verify whether stacking caused the poor results, individual techniques were tested in isolation:
+
+| Prompt | ROUGE-L | vs Baseline |
+|--------|---------|-------------|
+| Baseline (TL;DR) | 0.1529 | — |
+| Constraints only | 0.1423 | -0.0106 |
+| Structure only | 0.1472 | -0.0058 |
+
+**Both techniques performed worse than baseline when used alone.** This confirms that the issue is not stacking — the techniques themselves do not help GPT-2. The simple "TL;DR" prompt outperforms all engineered variants, likely because this pattern appears frequently in GPT-2's training data.
+
+### Conclusion
+
+Prompt engineering achieved marginal improvement (+0.6% ROUGE-L) but cannot compensate for GPT-2's fundamental limitations as a general-purpose language model not trained for summarization. Fine-tuning on domain-specific data (Task 7) is expected to yield larger gains.
 
 ---
 
